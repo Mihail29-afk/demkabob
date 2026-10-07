@@ -1,0 +1,85 @@
+hostnamectl set-hostname hq-srv.au-team.irpo
+
+echo "10.10.100.2/27" > /etc/net/ifaces/ens3/ipv4address
+echo "default via 10.10.100.1" > /etc/net/ifaces/ens3/ipv4route
+
+cat > /etc/net/ifaces/ens3/resolv.conf <<EOF
+nameserver 10.10.100.2
+nameserver 77.88.8.8
+EOF
+
+systemctl restart network
+
+# PATCH /etc/bind/options.conf
+sed -i 's/listen-on { 127.0.0.1; };/listen-on { 127.0.0.1; 10.10.100.2; };/' /etc/bind/options.conf
+sed -i 's/listen-on-v6 { ::1; };/listen-on-v6 { none; };/' /etc/bind/options.conf
+sed -i 's|//forward only;|forward only;|' /etc/bind/options.conf
+sed -i 's|//forwarders { };|forwarders { 77.88.8.8; };|' /etc/bind/options.conf
+sed -i 's|//allow-query { localnets; };|allow-query { any; };|' /etc/bind/options.conf
+sed -i 's|//allow-query-cache { localnets; };|allow-query-cache { any; };|' /etc/bind/options.conf
+sed -i 's|//allow-recursion { localnets; };|allow-recursion { any; };|' /etc/bind/options.conf
+
+grep -q '^[[:space:]]*allow-query-cache' /etc/bind/options.conf || \
+sed -i '/^};/i\allow-query-cache { any; };' /etc/bind/options.conf
+
+grep -q '^[[:space:]]*allow-recursion' /etc/bind/options.conf || \
+sed -i '/^};/i\allow-recursion { any; };' /etc/bind/options.conf
+
+# PATCH /etc/bind/zone/10.10.in-addr.arpa
+sed -i 's/itpo/irpo/g' /etc/bind/zone/10.10.in-addr.arpa
+sed -i 's|^@.*IN.*SOA.*|@       IN      SOA     hq-rtr.au-team.irpo. root.au-team.irpo. (|' /etc/bind/zone/10.10.in-addr.arpa
+
+# PATCH /etc/bind/zone/16.172.in-addr.arpa
+
+sed -i 's/itpo/irpo/g' /etc/bind/zone/16.172.in-addr.arpa
+sed -i 's|^@.*IN.*SOA.*|@       IN      SOA     hq-rtr.au-team.irpo. root.au-team.irpo. (|' /etc/bind/zone/16.172.in-addr.arpa
+
+# PATCH /etc/bind/zone/au-team.irpo.zone
+
+sed -i 's/^web[[:space:]]\+IN[[:space:]]\+A[[:space:]]\+172\.16\.1\.1/web       IN  A   172.16.2.1/' /etc/bind/zone/au-team.irpo.zone
+sed -i 's/^docker[[:space:]]\+IN[[:space:]]\+A[[:space:]]\+172\.16\.2\.1/docker    IN  A   172.16.1.1/' /etc/bind/zone/au-team.irpo.zone
+
+# SSH BANNER
+
+grep -q '^Banner /etc/openssh/banner' /etc/openssh/sshd_config || \
+echo 'Banner /etc/openssh/banner' >> /etc/openssh/sshd_config
+
+echo "Authorized access only" > /etc/openssh/banner
+
+systemctl restart sshd
+
+# CHECK BIND FILES
+
+grep -E 'listen-on|listen-on-v6|forward only|forwarders|allow-query|allow-query-cache|allow-recursion' /etc/bind/options.conf
+
+
+grep -E 'SOA|NS|PTR' /etc/bind/zone/10.10.in-addr.arpa
+
+
+grep -E 'SOA|NS|PTR' /etc/bind/zone/16.172.in-addr.arpa
+
+
+grep -E '^web|^docker' /etc/bind/zone/au-team.irpo.zone
+
+# CHECK BIND SYNTAX
+
+named-checkconf
+named-checkzone au-team.irpo /etc/bind/zone/au-team.irpo.zone
+named-checkzone 10.10.in-addr.arpa /etc/bind/zone/10.10.in-addr.arpa
+named-checkzone 16.172.in-addr.arpa /etc/bind/zone/16.172.in-addr.arpa
+
+systemctl enable --now bind.service
+systemctl restart bind.service
+
+# DNS CHECK
+
+dig @10.10.100.2 hq-srv.au-team.irpo +short
+dig @10.10.100.2 hq-cli.au-team.irpo +short
+dig @10.10.100.2 br-srv.au-team.irpo +short
+dig @10.10.100.2 br-cli.au-team.irpo +short
+dig @10.10.100.2 web.au-team.irpo +short
+dig @10.10.100.2 docker.au-team.irpo +short
+
+# SSH BANNER CHECK
+grep '^Banner' /etc/openssh/sshd_config
+cat /etc/openssh/banner
