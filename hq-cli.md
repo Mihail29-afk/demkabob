@@ -14,3 +14,5 @@ pass resu
 
 
  <img width="953" height="638" alt="image" src="https://github.com/user-attachments/assets/19d41a2c-d9cc-4aab-890a-113538bbcae1" />
+
+> Картинки сделаны lokis
