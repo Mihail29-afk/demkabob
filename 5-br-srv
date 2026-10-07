@@ -1,0 +1,31 @@
+# ===== BR-SRV (10.20.20.2) =====
+# Вход под пользователем sshuser (пароль P@ssw0rd), все команды через sudo
+# С HQ-SRV можно зайти так: ssh sshuser@10.20.20.2
+# Если порт SSH менялся - ssh -p <порт> sshuser@10.20.20.2
+#
+# КАК ЧИТАТЬ ФАЙЛ:
+#   - Обычные строки без # вне рамок - команды для ТЕРМИНАЛА
+#   - Всё между строками "vvvv В MCEDIT" и "^^^^ КОНЕЦ MCEDIT" - это то,
+#     что делается ВНУТРИ редактора: строки без # вписываются в файл
+#     (без пробелов в начале строки!), строки с # - подсказки, их не вписывать
+#   - mcedit: F2 - сохранить, F10 - выход
+
+# ---------- 1. Имя хоста ----------
+sudo hostnamectl set-hostname br-srv.au-team.irpo
+
+sudo mcedit /etc/sysconfig/network
+# vvvvvvvvvv В MCEDIT (вписываем в файл) vvvvvvvvvv
+HOSTNAME=br-srv.au-team.irpo
+# если строка HOSTNAME= уже есть - исправить, если нет - добавить
+# ^^^^^^^^^^ КОНЕЦ MCEDIT: F2 сохранить, F10 выйти ^^^^^^^^^^
+
+# ---------- 2. SSH баннер ----------
+echo 'Banner /etc/openssh/banner' | sudo tee -a /etc/openssh/sshd_config
+echo "Authorized access only" | sudo tee /etc/openssh/banner
+sudo systemctl restart sshd
+
+# ---------- доп проверка BR-SRV ----------
+hostname
+grep '^HOSTNAME=' /etc/sysconfig/network
+grep '^Banner' /etc/openssh/sshd_config
+cat /etc/openssh/banner
