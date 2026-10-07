@@ -1,0 +1,14 @@
+# Включение роутера
+enable
+# Режим конфигурации
+configure terminal (conf t)
+
+# Имена
+hostname hq-rtr
+ip domain-name au-team.irpo
+ip name-server 10.10.100.2
+# может не работать инет из-за временной зоны (не обязательно)
+ntp timezone utc+3
+
+# донастройка нат с isp/ доступ в интернет у роутеров
+
