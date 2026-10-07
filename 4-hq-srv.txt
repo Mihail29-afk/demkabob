@@ -1,0 +1,100 @@
+# ===== HQ-SRV =====
+# Все команды выполняются от root
+#
+# КАК ЧИТАТЬ ФАЙЛ:
+#   - Обычные строки без # вне рамок - команды для ТЕРМИНАЛА
+#   - Всё между строками "vvvv В MCEDIT" и "^^^^ КОНЕЦ MCEDIT" - это то,
+#     что делается ВНУТРИ редактора: строки без # вписываются в файл
+#     (без пробелов в начале строки!), строки с # - подсказки, их не вписывать
+#   - mcedit: F2 - сохранить, F10 - выход, F7 - поиск, F4 - замена
+ 
+# ---------- 1. Имя хоста ----------
+hostnamectl set-hostname hq-srv.au-team.irpo
+ 
+mcedit /etc/sysconfig/network
+# vvvvvvvvvv В MCEDIT (вписываем в файл) vvvvvvvvvv
+HOSTNAME=hq-srv.au-team.irpo
+# если строка HOSTNAME= уже есть - исправить, если нет - добавить
+# ^^^^^^^^^^ КОНЕЦ MCEDIT: F2 сохранить, F10 выйти ^^^^^^^^^^
+ 
+# ---------- 2. Сеть (интерфейс ens3) ----------
+echo "10.10.100.2/27" > /etc/net/ifaces/ens3/ipv4address
+echo "default via 10.10.100.1" > /etc/net/ifaces/ens3/ipv4route
+ 
+cat > /etc/net/ifaces/ens3/resolv.conf <<EOF
+nameserver 10.10.100.2
+nameserver 77.88.8.8
+EOF
+ 
+systemctl restart network
+ 
+# ---------- 3. BIND: options.conf ----------
+mcedit /etc/bind/options.conf
+# vvvvvvvvvv В MCEDIT (вписываем в файл) vvvvvvvvvv
+# Внутри блока options { ... }; раскомментировать / исправить строки так:
+listen-on { 127.0.0.1; 10.10.100.2; };
+listen-on-v6 { none; };
+forward only;
+forwarders { 77.88.8.8; };
+allow-query { any; };
+allow-query-cache { any; };
+allow-recursion { any; };
+# если строк allow-query-cache и allow-recursion нет - добавить их внутрь options { }
+# ^^^^^^^^^^ КОНЕЦ MCEDIT: F2 сохранить, F10 выйти ^^^^^^^^^^
+ 
+# ---------- 4. BIND: обратные зоны (в файлах специально сделаны ошибки) ----------
+mcedit /etc/bind/zone/10.10.in-addr.arpa
+# vvvvvvvvvv В MCEDIT (вписываем в файл) vvvvvvvvvv
+# F4 (замена): itpo -> irpo (заменить ВСЕ)
+# Первая строка SOA должна выглядеть так:
+@       IN      SOA     hq-rtr.au-team.irpo. root.au-team.irpo. (
+# ^^^^^^^^^^ КОНЕЦ MCEDIT: F2 сохранить, F10 выйти ^^^^^^^^^^
+ 
+mcedit /etc/bind/zone/16.172.in-addr.arpa
+# vvvvvvvvvv В MCEDIT (вписываем в файл) vvvvvvvvvv
+# F4 (замена): itpo -> irpo (заменить ВСЕ)
+# Первая строка SOA должна выглядеть так:
+@       IN      SOA     hq-rtr.au-team.irpo. root.au-team.irpo. (
+# ^^^^^^^^^^ КОНЕЦ MCEDIT: F2 сохранить, F10 выйти ^^^^^^^^^^
+ 
+# ---------- 5. BIND: прямая зона (web и docker перепутаны) ----------
+mcedit /etc/bind/zone/au-team.irpo.zone
+# vvvvvvvvvv В MCEDIT (вписываем в файл) vvvvvvvvvv
+# Записи должны быть такими:
+web       IN  A   172.16.2.1
+docker    IN  A   172.16.1.1
+# ^^^^^^^^^^ КОНЕЦ MCEDIT: F2 сохранить, F10 выйти ^^^^^^^^^^
+ 
+# ---------- 6. SSH баннер ----------
+echo 'Banner /etc/openssh/banner' >> /etc/openssh/sshd_config
+echo "Authorized access only" > /etc/openssh/banner
+systemctl restart sshd
+ 
+# ---------- 7. Проверка синтаксиса и запуск BIND ----------
+named-checkconf
+named-checkzone au-team.irpo /etc/bind/zone/au-team.irpo.zone
+named-checkzone 10.10.in-addr.arpa /etc/bind/zone/10.10.in-addr.arpa
+named-checkzone 16.172.in-addr.arpa /etc/bind/zone/16.172.in-addr.arpa
+ 
+systemctl enable --now bind.service
+systemctl restart bind.service
+ 
+# ---------- 8. Проверка DNS ----------
+dig @10.10.100.2 hq-srv.au-team.irpo +short
+dig @10.10.100.2 hq-cli.au-team.irpo +short
+dig @10.10.100.2 br-srv.au-team.irpo +short
+dig @10.10.100.2 br-cli.au-team.irpo +short
+dig @10.10.100.2 web.au-team.irpo +short
+dig @10.10.100.2 docker.au-team.irpo +short
+# br-cli в этой версии экзамена отсутствует - его запись может не отвечать
+ 
+# ---------- доп проверка HQ-SRV ----------
+hostname
+grep '^HOSTNAME=' /etc/sysconfig/network
+ip -br a
+cat /etc/net/ifaces/ens3/resolv.conf
+grep '^Banner' /etc/openssh/sshd_config
+cat /etc/openssh/banner
+systemctl status bind.service
+ 
+# Если все ОК - переходи к BR-SRV и HQ-CLI.
