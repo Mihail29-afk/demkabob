@@ -1,2 +1,4 @@
 # demkabob
-demkabob square pants is here to give you a general list of commands needed to successfuly get your sysadmin cert.
+демкабоб квадратные штаны подогнал тебе базовый лист команд нужных для сдачи первого модуля ДЭМО экзамена йоу. 
+
+Этот репо будет обновлятся в тандем с моей подготовкой к экзамену.
