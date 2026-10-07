@@ -2,7 +2,24 @@ hostnamectl set-hostname isp
 timedatectl set-timezone Europe/Moscow
 
 # Настройка нат
-# -s адреса ens4 ens5
+# -s адреса ens4 ens5 т.е. роутеры
 # -o ens3 это выход в интернет
 iptables -t nat -A POSTROUTING -s 172.16.1.1 -o ens3 -j MASQUERADE
 iptables -t nat -A POSTROUTING -s 172.16.2.1 -o ens3 -j MASQUERADE
+
+# Сохранить iptables
+iptables-save > /etc/sysconfig/iptables
+# запустить iptables
+systemctl start --now iptables.service
+
+# доп проверка ISP
+hostname
+timedatectl | grep "Time zone"
+ip -br a
+iptables -t nat -L POSTROUTING -n -v
+
+# проверка роутеров
+ДЛЯ HQ-RTR - ping 172.16.1.2
+ДЛЯ BR-RTR - ping 172.16.2.2
+
+# Если все ОК и роутеры доступны - переходи к роутерам.
