@@ -1,0 +1,59 @@
+# Включение роутера
+enable
+# Режим конфигурации
+configure terminal (conf t)
+# Сохранение прогресса. Все как в играх - если не сохранился значит ничего не было
+write memory
+
+# Имена
+hostname br-rtr
+ip name-server 10.10.100.2
+ip domain-name au-team.irpo
+# может не работать инет из-за временной зоны (не обязательно)
+ntp timezone utc+3
+
+# доступ в интернет у роутеров (Если на isp не настроен masquerade, то ничего работать не будет)
+ip route 0.0.0.0/0 172.16.2.1
+
+# GRE туннель между br-rtr и hq-rtr
+interface tunnel.1
+ip address 10.10.10.2/30
+ip mtu 1400 (необязательно)
+ip tunnel 172.16.2.2 172.16.1.2 mode gre
+exit
+
+# OSPF маршрутизация
+router ospf 1
+ospf router-id 10.10.10.2
+network 10.10.10.0/30 area 0
+network 10.20.10.0/30 area 0
+passive-interface default
+no passive-interface tunnel.1
+no passive-interface fw (если есть фаерволл)
+exit
+
+# Аутентификация по GRE(OSPF)
+interface tunnel.1
+ip ospf authentication message-digest
+ip ospf message-digest-key 1 md5 P@ssw0rd
+exit
+
+# Аутентификация по FW (Если есть)
+interface fw
+ip ospf authentication message-digest
+ip ospf message-digest-key 1 md5 P@ssw0rd
+exit
+
+# Донастройка NAT
+ip nat pool VLAN10 10.20.20.1-10.20.20.14
+ip nat pool VLAN20 10.20.30.1-10.20.30.6
+ip nat pool RTR-FW 10.20.10.1-10.20.10.2 (если есть FW на топологии)
+
+ip nat source dynamic inside-to-outside pool VLAN10 overload interface isp
+ip nat source dynamic inside-to-outside pool VLAN20 overload interface isp
+ip nat source dynamic inside-to-outside pool RTR-FW overload interface isp
+
+### НЕ ЗАБУДЬТЕ СОХРАНИТЬ ВСЕ В ПАМЯТЬ РОУТЕРА ИНАЧЕ ВАМ ПИЗДА!!! ###
+end
+write memory
+exit
